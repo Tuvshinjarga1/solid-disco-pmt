@@ -62,6 +62,43 @@ async def process_fastapi_request(fastapi_request):
         traceback.print_exc()
         return None
 
+# Development test mode - Authentication-гүйгээр OpenAI хариу авах
+async def handle_test_message(user_message: str) -> str:
+    """Development test mode - Bot Framework-гүйгээр OpenAI-тай шууд ярилцах"""
+    try:
+        # OpenAI model-тэй шууд ярилцах
+        from teams.ai.models import PromptCompletionModel
+        
+        # Test prompt үүсгэх
+        test_prompt = f"""
+You are a helpful AI assistant for a Teams bot.
+User message: {user_message}
+
+Please provide a helpful and friendly response in Mongolian.
+"""
+        
+        # OpenAI API шууд дуудах
+        import openai
+        openai.api_key = config.OPENAI_API_KEY
+        
+        response = await openai.ChatCompletion.acreate(
+            model=config.OPENAI_MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are a helpful AI assistant. Respond in Mongolian."},
+                {"role": "user", "content": user_message}
+            ],
+            max_tokens=500,
+            temperature=0.7
+        )
+        
+        bot_response = response.choices[0].message.content.strip()
+        return bot_response
+        
+    except Exception as e:
+        print(f"Error in test mode: {e}")
+        traceback.print_exc()
+        return f"Test mode error: {str(e)}"
+
 @bot_app.error
 async def on_error(context: TurnContext, error: Exception):
     # This check writes out errors to console log .vs. app insights.

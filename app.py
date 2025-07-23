@@ -7,7 +7,7 @@ import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
-from bot import process_fastapi_request
+from bot import process_fastapi_request, handle_test_message
 from config import Config
 
 # FastAPI app үүсгэх
@@ -26,7 +26,7 @@ async def root():
 
 @app.post("/api/messages")
 async def on_messages(request: Request) -> Response:
-    """Teams bot messages endpoint"""
+    """Teams bot messages endpoint - Microsoft Bot Framework"""
     # FastAPI Request-г Teams AI bot рүү дамжуулах
     res = await process_fastapi_request(request)
     
@@ -35,6 +35,36 @@ async def on_messages(request: Request) -> Response:
         return JSONResponse(content={"status": "processed"}, status_code=200)
     
     return JSONResponse(content={"status": "ok"}, status_code=200)
+
+@app.post("/api/test")
+async def test_chat(request: Request) -> Response:
+    """Development test endpoint - Authentication шаардлагагүй"""
+    try:
+        # Request body уншиж авах
+        body = await request.json()
+        user_message = body.get("message", "")
+        
+        if not user_message:
+            return JSONResponse(
+                content={"error": "Message field шаардлагатай"}, 
+                status_code=400
+            )
+        
+        # Bot response авах (authentication-гүйгээр)
+        bot_response = await handle_test_message(user_message)
+        
+        return JSONResponse(content={
+            "status": "success",
+            "user_message": user_message,
+            "bot_response": bot_response,
+            "note": "Development test mode - authentication bypass"
+        })
+        
+    except Exception as e:
+        return JSONResponse(
+            content={"error": f"Test mode error: {str(e)}"}, 
+            status_code=500
+        )
 
 @app.get("/health")
 async def health_check():
@@ -49,7 +79,12 @@ async def health_check():
         "port": port,
         "framework": "FastAPI",
         "environment": "production" if railway_url != "unknown" else "development",
-        "public_url": f"https://{railway_url}" if railway_url != "unknown" else f"http://localhost:{port}"
+        "public_url": f"https://{railway_url}" if railway_url != "unknown" else f"http://localhost:{port}",
+        "endpoints": {
+            "teams_webhook": "/api/messages",
+            "test_chat": "/api/test",
+            "docs": "/docs"
+        }
     }
 
 # Error handling middleware
@@ -73,8 +108,10 @@ if __name__ == "__main__":
     railway_url = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
     if railway_url:
         print(f"🔗 Public URL: https://{railway_url}")
+        print(f"🧪 Test endpoint: https://{railway_url}/api/test")
     else:
         print(f"🔗 Local URL: http://localhost:{port}")
+        print(f"🧪 Test endpoint: http://localhost:{port}/api/test")
     
     # FastAPI app-г uvicorn ашиглан ажиллуулах
     uvicorn.run(
