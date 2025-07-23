@@ -274,19 +274,30 @@ Teams орчинд ажиллаж байгаагаа санаарай.
         print(f"📢 Teams message from {user_name}: {user_message}")
         print(f"🤖 Bot response: {bot_response}")
         
-        # Teams client рүү reply илгээх
+        # Teams client рүү reply илгээх (зөвхөн TEAMS_REPLY_ENABLED=true бол)
         reply_success = False
-        if service_url and conversation_id and activity_id:
-            reply_success = await send_teams_reply(
-                service_url=service_url,
-                conversation_id=conversation_id, 
-                activity_id=activity_id,
-                bot_response=bot_response
-            )
+        reply_attempted = False
+        
+        if config.TEAMS_REPLY_ENABLED:
+            if service_url and conversation_id and activity_id:
+                reply_attempted = True
+                reply_success = await send_teams_reply(
+                    service_url=service_url,
+                    conversation_id=conversation_id, 
+                    activity_id=activity_id,
+                    bot_response=bot_response
+                )
+            else:
+                print("⚠️ Teams reply enabled but missing required fields")
+        else:
+            print("ℹ️ Teams reply disabled - only console logging")
+            print("💡 To enable Teams replies: set TEAMS_REPLY_ENABLED=true and configure BOT_ID/BOT_PASSWORD")
         
         return {
             "bot_response": bot_response,
             "reply_sent": reply_success,
+            "reply_attempted": reply_attempted,
+            "teams_reply_enabled": config.TEAMS_REPLY_ENABLED,
             "teams_context": {
                 "user": user_name,
                 "conversation_id": conversation_id,
@@ -301,6 +312,7 @@ Teams орчинд ажиллаж байгаагаа санаарай.
         return {
             "bot_response": f"Teams OpenAI алдаа: {str(e)}",
             "reply_sent": False,
+            "reply_attempted": False,
             "error": str(e)
         }
 

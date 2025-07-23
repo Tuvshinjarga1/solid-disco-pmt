@@ -18,6 +18,9 @@ class Config:
     # Development mode - authentication bypass хийх эсэх
     DEVELOPMENT_MODE = os.environ.get("DEVELOPMENT_MODE", "true").lower() == "true"
     
+    # Teams reply feature enable/disable
+    TEAMS_REPLY_ENABLED = os.environ.get("TEAMS_REPLY_ENABLED", "false").lower() == "true"
+    
     APP_ID = os.environ.get("BOT_ID", "")
     APP_PASSWORD = os.environ.get("BOT_PASSWORD", "")
     APP_TYPE = os.environ.get("BOT_TYPE", "")
