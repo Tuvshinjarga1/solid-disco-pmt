@@ -1,0 +1,55 @@
+# Git хавтас
+.git
+.gitignore
+
+# Python cache файлууд
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Виртуал орчин
+venv/
+env/
+ENV/
+.venv/
+
+# IDE файлууд
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS файлууд
+.DS_Store
+Thumbs.db
+
+# Log файлууд
+*.log
+logs/
+
+# Test файлууд
+tests/
+test_*
+*_test.py
+
+# Environment файлууд (эдгээр container-д тусгайлан тохируулах хэрэгтэй)
+.env
+.env.local
+.env.production
+
+# Documentation
+README.md
+docs/
+
+# Docker файлууд
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Бусад
+*.md
+.pytest_cache/
+.coverage
+htmlcov/ 
