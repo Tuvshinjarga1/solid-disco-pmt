@@ -25,9 +25,9 @@ services:
 
     restart: unless-stopped
 
-    # Health check
+    # Health check (FastAPI-ийн /health endpoint)
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3978/"]
+      test: ["CMD", "curl", "-f", "http://localhost:3978/health"]
       interval: 30s
       timeout: 10s
       retries: 3

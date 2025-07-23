@@ -49,6 +49,19 @@ bot_app = Application[TurnState](
     )
 )
 
+# FastAPI Request-г шууд Teams AI bot-д дамжуулах
+async def process_fastapi_request(fastapi_request):
+    """FastAPI Request-г Teams AI framework рүү шууд дамжуулах"""
+    try:
+        # Teams AI framework нь FastAPI Request-тэй шууд ажиллана
+        response = await bot_app.process(fastapi_request)
+        return response
+        
+    except Exception as e:
+        print(f"Error processing FastAPI request: {e}")
+        traceback.print_exc()
+        return None
+
 @bot_app.error
 async def on_error(context: TurnContext, error: Exception):
     # This check writes out errors to console log .vs. app insights.
