@@ -12,7 +12,9 @@ load_dotenv()
 class Config:
     """Bot Configuration"""
 
-    PORT = 3978
+    # Railway платформ дээр PORT environment variable автоматаар тохируулагддаг
+    PORT = int(os.environ.get("PORT", 3978))
+    
     APP_ID = os.environ.get("BOT_ID", "")
     APP_PASSWORD = os.environ.get("BOT_PASSWORD", "")
     APP_TYPE = os.environ.get("BOT_TYPE", "")

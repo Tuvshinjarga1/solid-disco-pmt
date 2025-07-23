@@ -2,6 +2,7 @@
 Copyright (c) Microsoft Corporation. All rights reserved.
 Licensed under the MIT License.
 """
+import os
 import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
@@ -38,11 +39,17 @@ async def on_messages(request: Request) -> Response:
 @app.get("/health")
 async def health_check():
     """Detailed health check for monitoring"""
+    # Railway deployment info нэмэх
+    railway_url = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "unknown")
+    port = os.environ.get("PORT", Config.PORT)
+    
     return {
         "status": "healthy",
         "service": "teams-ai-bot",
-        "port": Config.PORT,
-        "framework": "FastAPI"
+        "port": port,
+        "framework": "FastAPI",
+        "environment": "production" if railway_url != "unknown" else "development",
+        "public_url": f"https://{railway_url}" if railway_url != "unknown" else f"http://localhost:{port}"
     }
 
 # Error handling middleware
@@ -55,11 +62,25 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 if __name__ == "__main__":
+    # Railway платформын PORT environment variable ашиглах
+    port = int(os.environ.get("PORT", Config.PORT))
+    
+    print(f"🚀 Starting Teams AI Bot...")
+    print(f"📍 Port: {port}")
+    print(f"🌐 Host: 0.0.0.0 (Railway compatible)")
+    
+    # Railway дээр public URL харуулах
+    railway_url = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+    if railway_url:
+        print(f"🔗 Public URL: https://{railway_url}")
+    else:
+        print(f"🔗 Local URL: http://localhost:{port}")
+    
     # FastAPI app-г uvicorn ашиглан ажиллуулах
     uvicorn.run(
         "app:app",
-        host="0.0.0.0",  # Docker container-д ажиллахын тулд 0.0.0.0
-        port=Config.PORT,
+        host="0.0.0.0",  # Railway болон бусад cloud platforms-д ажиллахын тулд
+        port=port,
         reload=False,  # Production-д reload идэвхгүй
         log_level="info",
         access_log=True
