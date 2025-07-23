@@ -7,7 +7,7 @@ import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
-from bot import process_fastapi_request, handle_test_message
+from bot import process_fastapi_request, handle_test_message, handle_teams_message
 from config import Config
 
 # FastAPI app үүсгэх
@@ -27,14 +27,49 @@ async def root():
 @app.post("/api/messages")
 async def on_messages(request: Request) -> Response:
     """Teams bot messages endpoint - Microsoft Bot Framework"""
-    # FastAPI Request-г Teams AI bot рүү дамжуулах
-    res = await process_fastapi_request(request)
     
-    if res is not None:
-        # Bot-оос Response ирвэл success status буцаах
-        return JSONResponse(content={"status": "processed"}, status_code=200)
+    if Config.DEVELOPMENT_MODE:
+        # Development mode - Teams activity ойлгож, OpenAI шууд ашиглах
+        try:
+            body = await request.json()
+            
+            # Teams activity format шалгах
+            if body.get("type") == "message" and body.get("text"):
+                user_message = body.get("text", "")
+                
+                # OpenAI-аар хариулах
+                bot_response = await handle_teams_message(user_message, body)
+                
+                return JSONResponse(content={
+                    "status": "processed",
+                    "mode": "development_teams_direct",
+                    "user_message": user_message,
+                    "bot_response": bot_response
+                }, status_code=200)
+            
+            else:
+                # Teams system messages (member added, etc.)
+                return JSONResponse(content={
+                    "status": "ok", 
+                    "mode": "development_teams_system",
+                    "activity_type": body.get("type", "unknown")
+                }, status_code=200)
+                
+        except Exception as e:
+            print(f"Development Teams mode error: {e}")
+            return JSONResponse(content={
+                "status": "error", 
+                "error": str(e)
+            }, status_code=500)
     
-    return JSONResponse(content={"status": "ok"}, status_code=200)
+    else:
+        # Production mode - Teams AI framework ашиглах
+        res = await process_fastapi_request(request)
+        
+        if res is not None:
+            return JSONResponse(content={"status": "processed"}, status_code=200)
+        
+        return JSONResponse(content={"status": "ok"}, status_code=200)
 
 @app.post("/api/test")
 async def test_chat(request: Request) -> Response:
@@ -79,9 +114,10 @@ async def health_check():
         "port": port,
         "framework": "FastAPI",
         "environment": "production" if railway_url != "unknown" else "development",
+        "development_mode": Config.DEVELOPMENT_MODE,
         "public_url": f"https://{railway_url}" if railway_url != "unknown" else f"http://localhost:{port}",
         "endpoints": {
-            "teams_webhook": "/api/messages",
+            "teams_webhook": "/api/messages" + (" (development mode - direct OpenAI)" if Config.DEVELOPMENT_MODE else " (production mode - Teams AI framework)"),
             "test_chat": "/api/test",
             "docs": "/docs"
         }
@@ -103,15 +139,23 @@ if __name__ == "__main__":
     print(f"🚀 Starting Teams AI Bot...")
     print(f"📍 Port: {port}")
     print(f"🌐 Host: 0.0.0.0 (Railway compatible)")
+    print(f"🧪 Development Mode: {Config.DEVELOPMENT_MODE}")
+    
+    if Config.DEVELOPMENT_MODE:
+        print("🔧 Teams messages will use direct OpenAI (bypass authentication)")
+    else:
+        print("🔒 Teams messages will use full Teams AI framework")
     
     # Railway дээр public URL харуулах
     railway_url = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
     if railway_url:
         print(f"🔗 Public URL: https://{railway_url}")
         print(f"🧪 Test endpoint: https://{railway_url}/api/test")
+        print(f"🤖 Teams webhook: https://{railway_url}/api/messages")
     else:
         print(f"🔗 Local URL: http://localhost:{port}")
         print(f"🧪 Test endpoint: http://localhost:{port}/api/test")
+        print(f"🤖 Teams webhook: http://localhost:{port}/api/messages")
     
     # FastAPI app-г uvicorn ашиглан ажиллуулах
     uvicorn.run(
