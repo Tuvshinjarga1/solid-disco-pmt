@@ -66,38 +66,37 @@ async def process_fastapi_request(fastapi_request):
 async def handle_test_message(user_message: str) -> str:
     """Development test mode - Bot Framework-гүйгээр OpenAI-тай шууд ярилцах"""
     try:
-        # OpenAI model-тэй шууд ярилцах
-        from teams.ai.models import PromptCompletionModel
+        # OpenAI 1.0+ client ашиглах
+        from openai import AsyncOpenAI
         
-        # Test prompt үүсгэх
-        test_prompt = f"""
-You are a helpful AI assistant for a Teams bot.
-User message: {user_message}
-
-Please provide a helpful and friendly response in Mongolian.
-"""
+        # AsyncOpenAI client үүсгэх  
+        client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         
-        # OpenAI API шууд дуудах
-        import openai
-        openai.api_key = config.OPENAI_API_KEY
-        
-        response = await openai.ChatCompletion.acreate(
+        # Chat completion хүсэлт илгээх
+        response = await client.chat.completions.create(
             model=config.OPENAI_MODEL_NAME,
             messages=[
-                {"role": "system", "content": "You are a helpful AI assistant. Respond in Mongolian."},
-                {"role": "user", "content": user_message}
+                {
+                    "role": "system", 
+                    "content": "Та туслах AI дэд юм. Монгол хэлээр хариулна уу. Найрсаг, тусламжтай байгаарай."
+                },
+                {
+                    "role": "user", 
+                    "content": user_message
+                }
             ],
             max_tokens=500,
             temperature=0.7
         )
         
+        # Response-оос хариуг авах
         bot_response = response.choices[0].message.content.strip()
         return bot_response
         
     except Exception as e:
         print(f"Error in test mode: {e}")
         traceback.print_exc()
-        return f"Test mode error: {str(e)}"
+        return f"OpenAI API алдаа: {str(e)}"
 
 @bot_app.error
 async def on_error(context: TurnContext, error: Exception):
