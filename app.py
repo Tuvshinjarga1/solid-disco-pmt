@@ -27,7 +27,6 @@ async def root():
 @app.post("/api/messages")
 async def on_messages(request: Request) -> Response:
     """Teams bot messages endpoint - Microsoft Bot Framework"""
-    
     if Config.DEVELOPMENT_MODE:
         # Development mode - Teams activity ойлгож, OpenAI шууд ашиглах
         try:
