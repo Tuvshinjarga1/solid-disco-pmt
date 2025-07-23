@@ -18,6 +18,60 @@ from config import Config
 
 config = Config()
 
+# Bot Framework access token кэш
+_bot_access_token = None
+_token_expires_at = 0
+
+# Microsoft Bot Framework access token авах
+async def get_bot_access_token():
+    """Microsoft Bot Framework access token авах"""
+    global _bot_access_token, _token_expires_at
+    
+    import time
+    current_time = time.time()
+    
+    # Token кэш хүчинтэй бол ашиглах
+    if _bot_access_token and current_time < _token_expires_at:
+        return _bot_access_token
+    
+    try:
+        # Microsoft Bot Framework token endpoint
+        token_url = "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
+        
+        # App ID болон Password шаардлагатай
+        if not config.APP_ID or not config.APP_PASSWORD:
+            print("⚠️ APP_ID болон APP_PASSWORD тохируулагдаагүй - authentication skip")
+            return None
+            
+        # Token request
+        token_data = {
+            "grant_type": "client_credentials",
+            "client_id": config.APP_ID,
+            "client_secret": config.APP_PASSWORD,
+            "scope": "https://api.botframework.com/.default"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(token_url, data=token_data) as response:
+                if response.status == 200:
+                    token_response = await response.json()
+                    
+                    _bot_access_token = token_response.get("access_token")
+                    expires_in = token_response.get("expires_in", 3600)  # Default 1 hour
+                    _token_expires_at = current_time + expires_in - 60  # 1 минутын өмнө expire
+                    
+                    print("✅ Bot Framework access token авсан")
+                    return _bot_access_token
+                else:
+                    error_text = await response.text()
+                    print(f"❌ Bot Framework token алдаа: {response.status} - {error_text}")
+                    return None
+                    
+    except Exception as e:
+        print(f"Error getting Bot Framework token: {e}")
+        traceback.print_exc()
+        return None
+
 # Create AI components
 model: OpenAIModel
 
@@ -131,16 +185,21 @@ async def send_teams_reply(service_url: str, conversation_id: str, activity_id: 
             "replyToId": activity_id
         }
         
+        # Microsoft Bot Framework access token авах
+        access_token = await get_bot_access_token()
+        
         # HTTP client ашиглаж Teams Bot Connector API дуудах
         async with aiohttp.ClientSession() as session:
-            # Development mode-д authentication header-гүйгээр оролдох
             headers = {
                 "Content-Type": "application/json"
             }
             
-            # Production mode-д Bearer token хэрэгтэй (одоохондоо хоосон)
-            if not config.DEVELOPMENT_MODE and config.APP_ID:
-                headers["Authorization"] = f"Bearer {config.APP_ID}"  # Simplified for dev
+            # Bearer token нэмэх
+            if access_token:
+                headers["Authorization"] = f"Bearer {access_token}"
+                print("🔐 Using Bot Framework authentication token")
+            else:
+                print("⚠️ No Bot Framework token - attempting without authentication")
             
             print(f"🔗 Sending reply to: {reply_url}")
             print(f"📤 Reply activity: {json.dumps(reply_activity, indent=2)}")
@@ -152,6 +211,14 @@ async def send_teams_reply(service_url: str, conversation_id: str, activity_id: 
                 else:
                     response_text = await response.text()
                     print(f"❌ Teams reply failed: {response.status} - {response_text}")
+                    
+                    # Token алдаа бол дахин оролдох
+                    if response.status == 401 and access_token:
+                        print("🔄 Token expired? Clearing cache and retrying...")
+                        global _bot_access_token, _token_expires_at
+                        _bot_access_token = None
+                        _token_expires_at = 0
+                    
                     return False
                     
     except Exception as e:
