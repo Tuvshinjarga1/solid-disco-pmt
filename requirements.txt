@@ -2,4 +2,5 @@ python-dotenv
 fastapi
 uvicorn[standard]
 openai
+aiohttp
 teams-ai>=1.6.0,<2.0.0

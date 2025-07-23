@@ -3,6 +3,7 @@ import sys
 import json
 import traceback
 from dataclasses import asdict
+import aiohttp
 
 from botbuilder.core import MemoryStorage, TurnContext
 from teams import Application, ApplicationOptions, TeamsAdapter
@@ -112,9 +113,55 @@ async def handle_test_message(user_message: str) -> str:
         traceback.print_exc()
         return f"OpenAI API алдаа: {str(e)}"
 
+# Teams Bot Connector API ашиглаж reply илгээх
+async def send_teams_reply(service_url: str, conversation_id: str, activity_id: str, bot_response: str, app_id: str = None):
+    """Teams Bot Connector API ашиглаж хариу илгээх"""
+    try:
+        # Reply URL үүсгэх
+        reply_url = f"{service_url}v3/conversations/{conversation_id}/activities/{activity_id}"
+        
+        # Reply activity үүсгэх
+        reply_activity = {
+            "type": "message",
+            "text": bot_response,
+            "from": {
+                "id": app_id or config.APP_ID or "bot-dev",
+                "name": "Teams AI Bot"
+            },
+            "replyToId": activity_id
+        }
+        
+        # HTTP client ашиглаж Teams Bot Connector API дуудах
+        async with aiohttp.ClientSession() as session:
+            # Development mode-д authentication header-гүйгээр оролдох
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            # Production mode-д Bearer token хэрэгтэй (одоохондоо хоосон)
+            if not config.DEVELOPMENT_MODE and config.APP_ID:
+                headers["Authorization"] = f"Bearer {config.APP_ID}"  # Simplified for dev
+            
+            print(f"🔗 Sending reply to: {reply_url}")
+            print(f"📤 Reply activity: {json.dumps(reply_activity, indent=2)}")
+            
+            async with session.post(reply_url, json=reply_activity, headers=headers) as response:
+                if response.status == 200 or response.status == 201:
+                    print("✅ Teams reply sent successfully!")
+                    return True
+                else:
+                    response_text = await response.text()
+                    print(f"❌ Teams reply failed: {response.status} - {response_text}")
+                    return False
+                    
+    except Exception as e:
+        print(f"Error sending Teams reply: {e}")
+        traceback.print_exc()
+        return False
+
 # Microsoft Teams activity format ойлгох 
-async def handle_teams_message(user_message: str, teams_activity: dict) -> str:
-    """Microsoft Teams activity-г ойлгож, OpenAI шууд ашиглах"""
+async def handle_teams_message(user_message: str, teams_activity: dict) -> dict:
+    """Microsoft Teams activity-г ойлгож, OpenAI шууд ашиглах, Teams reply илгээх"""
     try:
         # OpenAI 1.0+ client ашиглах
         from openai import AsyncOpenAI
@@ -122,6 +169,8 @@ async def handle_teams_message(user_message: str, teams_activity: dict) -> str:
         # Teams activity-аас context мэдээлэл авах
         user_name = teams_activity.get("from", {}).get("name", "User")
         conversation_id = teams_activity.get("conversation", {}).get("id", "unknown")
+        activity_id = teams_activity.get("id", "unknown")
+        service_url = teams_activity.get("serviceUrl", "")
         
         # AsyncOpenAI client үүсгэх  
         client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
@@ -158,12 +207,35 @@ Teams орчинд ажиллаж байгаагаа санаарай.
         print(f"📢 Teams message from {user_name}: {user_message}")
         print(f"🤖 Bot response: {bot_response}")
         
-        return bot_response
+        # Teams client рүү reply илгээх
+        reply_success = False
+        if service_url and conversation_id and activity_id:
+            reply_success = await send_teams_reply(
+                service_url=service_url,
+                conversation_id=conversation_id, 
+                activity_id=activity_id,
+                bot_response=bot_response
+            )
+        
+        return {
+            "bot_response": bot_response,
+            "reply_sent": reply_success,
+            "teams_context": {
+                "user": user_name,
+                "conversation_id": conversation_id,
+                "activity_id": activity_id,
+                "service_url": service_url
+            }
+        }
         
     except Exception as e:
         print(f"Error in Teams message handling: {e}")
         traceback.print_exc()
-        return f"Teams OpenAI алдаа: {str(e)}"
+        return {
+            "bot_response": f"Teams OpenAI алдаа: {str(e)}",
+            "reply_sent": False,
+            "error": str(e)
+        }
 
 # Teams AI framework event handlers (зөвхөн production mode-д)
 if not config.DEVELOPMENT_MODE and bot_app is not None:

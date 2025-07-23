@@ -37,14 +37,16 @@ async def on_messages(request: Request) -> Response:
             if body.get("type") == "message" and body.get("text"):
                 user_message = body.get("text", "")
                 
-                # OpenAI-аар хариулах
-                bot_response = await handle_teams_message(user_message, body)
+                # OpenAI-аар хариулж, Teams reply илгээх
+                result = await handle_teams_message(user_message, body)
                 
                 return JSONResponse(content={
                     "status": "processed",
                     "mode": "development_teams_direct",
                     "user_message": user_message,
-                    "bot_response": bot_response
+                    "bot_response": result.get("bot_response"),
+                    "reply_sent_to_teams": result.get("reply_sent", False),
+                    "teams_context": result.get("teams_context", {})
                 }, status_code=200)
             
             else:
